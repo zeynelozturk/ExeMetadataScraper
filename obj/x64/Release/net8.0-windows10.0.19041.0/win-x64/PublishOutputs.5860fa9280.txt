@@ -1,5 +1,0 @@
-C:\Users\Zeynel\Desktop\Test\WinUIMetadataScraper.pdb
-C:\Users\Zeynel\Desktop\Test\KeyboardSite.FileMetaDataProcessor.pdb
-C:\Users\Zeynel\Desktop\Test\KeyboardSite.Common.pdb
-C:\Users\Zeynel\Desktop\Test\KeyboardSite.Entities.pdb
-C:\Users\Zeynel\Desktop\Test\WinUIMetadataScraper.exe

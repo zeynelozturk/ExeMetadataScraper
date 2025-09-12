@@ -1,1 +1,0 @@
-C:\Users\Zeynel\Source\Repos\DefKeyNetCore\WinUIMetadataScraper\bin\x64\Debug\net8.0-windows10.0.19041.0\win-x64\AppPackages\WinUIMetadataScraper_1.0.0.0_x64_Debug_Test\WinUIMetadataScraper_1.0.0.0_x64_Debug.msix

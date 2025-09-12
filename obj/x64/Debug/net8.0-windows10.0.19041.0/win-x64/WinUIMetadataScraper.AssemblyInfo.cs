@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("WinUIMetadataScraper")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cfb54c6b959c36f57743d37bd65edb5dba4df01c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5b6c36fbc7b0aaf6dcdd3d455b7c305c05b36e41")]
 [assembly: System.Reflection.AssemblyProductAttribute("WinUIMetadataScraper")]
 [assembly: System.Reflection.AssemblyTitleAttribute("WinUIMetadataScraper")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
