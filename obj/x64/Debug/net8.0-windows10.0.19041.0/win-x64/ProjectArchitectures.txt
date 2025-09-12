@@ -1,0 +1,1 @@
+C:\Users\Zeynel\Source\Repos\DefKeyNetCore\WinUIMetadataScraper\WinUIMetadataScraper.csproj;x64

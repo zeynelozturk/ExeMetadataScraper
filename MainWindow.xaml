@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+       x:Class="WinUIMetadataScraper.MainWindow"
+       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+       Title="Exe Metadata Scraper for Defkey">
+
+    <Grid x:Name="RootGrid"
+          Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+          RequestedTheme="Light">
+
+        <Grid.Resources>
+            <!-- Accent / Visual Identity -->
+            <SolidColorBrush x:Key="AccentBrush" Color="#C62828"/>
+            <SolidColorBrush x:Key="DropZoneBorderBrush" Color="#9E9E9E"/>
+            <SolidColorBrush x:Key="DropZoneBackgroundBrush" Color="#FFFDFDFD"/>
+            <SolidColorBrush x:Key="DropZoneDragOverBackgroundBrush" Color="#FFE3F2FD"/>
+            <SolidColorBrush x:Key="DropZoneHighlightBorderBrush" Color="#FF1976D2"/>
+
+            <Style x:Key="TopBarPrimaryButton" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                <Setter Property="MinWidth" Value="160"/>
+                <Setter Property="Height" Value="40"/>
+                <Setter Property="CornerRadius" Value="8"/>
+                <Setter Property="Padding" Value="16,8"/>
+            </Style>
+
+            <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="CornerRadius" Value="6"/>
+                <Setter Property="MinWidth" Value="90"/>
+                <Setter Property="Height" Value="34"/>
+                <Setter Property="Padding" Value="12,6"/>
+            </Style>
+        </Grid.Resources>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Bar -->
+        <StackPanel Grid.Row="0"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,4,14,0"
+                    Spacing="10">
+            <Button x:Name="LoginButton"
+                    Click="LoginButton_Click"
+                    Style="{StaticResource TopBarPrimaryButton}"
+                    AutomationProperties.Name="Login Button">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE77B;"/>
+                    <TextBlock Text="Login"/>
+                </StackPanel>
+            </Button>
+            <TextBlock x:Name="AuthStatusTextBlock"
+                       Text="Not authenticated"
+                       FontWeight="Bold"
+                       Foreground="Gray"
+                       VerticalAlignment="Center"/>
+            <Button x:Name="LogoutButton"
+                    Content="Logout"
+                    Width="100"
+                    Height="40"
+                    Visibility="Collapsed"
+                    Click="LogoutButton_Click"
+                    AutomationProperties.Name="Logout Button"/>
+        </StackPanel>
+
+        <!-- InfoBar (future non-modal messaging; keep collapsed initially) -->
+        <InfoBar x:Name="StatusInfoBar"
+                 Grid.Row="1"
+                 IsOpen="False"
+                 Margin="20,8,20,4"
+                 Severity="Informational"
+                 Title="Status"
+                 Message=""/>
+
+        <!-- Main Scrollable Content -->
+        <ScrollViewer Grid.Row="2"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel HorizontalAlignment="Center"
+                        Width="640"
+                        Spacing="28"
+                        Margin="0,8,0,16">
+
+                <!-- Drop Zone -->
+                <Border x:Name="DropZone"
+                        HorizontalAlignment="Stretch"
+                        Height="210"
+                        CornerRadius="10"
+                        Background="{StaticResource DropZoneBackgroundBrush}"
+                        BorderBrush="{StaticResource DropZoneBorderBrush}"
+                        BorderThickness="2"
+                        AllowDrop="True"
+                        Drop="OnFileDrop"
+                        DragOver="OnDragOver"
+                        DragLeave="DropZone_DragLeave"
+                        Tapped="DropZone_Tapped"
+                        KeyDown="DropZone_KeyDown"
+                        ToolTipService.ToolTip="Drag an .exe (or click) to select a file">
+                    <Grid>
+                        <StackPanel HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="12">
+                            <FontIcon Glyph="&#xE898;" FontSize="28" Foreground="{StaticResource AccentBrush}"/>
+                            <TextBlock Text="Drag &amp; drop an .exe file here"
+                                       FontSize="15"
+                                       Foreground="#444"/>
+                            <TextBlock Text="or click to Browse"
+                                       Foreground="#666"
+                                       FontStyle="Italic"
+                                       FontSize="12"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Button Content="Browse"
+                        Click="BrowseButton_Click"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        HorizontalAlignment="Center"
+                        AutomationProperties.Name="Browse Executable Button"/>
+
+                <!-- File Header -->
+                <StackPanel Orientation="Horizontal" Spacing="14">
+                    <Border Width="56" Height="56" CornerRadius="8" Background="#22000000">
+                        <Image x:Name="FileIconImage"
+                               Stretch="Uniform"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock x:Name="FileNameTextBlock"
+                               Text=""
+                               FontSize="22"
+                               FontWeight="Bold"
+                               IsTextSelectionEnabled="True"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- File Path -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="File Path:"
+                               FontWeight="Bold"
+                               Margin="0,0,6,0"
+                               VerticalAlignment="Top"/>
+                    <TextBlock x:Name="FilePathValueTextBlock"
+                               Grid.Column="1"
+                               IsTextSelectionEnabled="True"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Top"
+                               Foreground="#222"/>
+                    <TextBlock Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Top">
+                        <Hyperlink Click="OpenFolderHyperlink_Click">
+                            <Run Text="(Open file location)"/>
+                        </Hyperlink>
+                    </TextBlock>
+                </Grid>
+
+                <!-- Metadata Card -->
+                <StackPanel Spacing="10">
+                    <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                            Padding="16,14,16,12">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Height="260">
+                            <TextBlock x:Name="FileMetadataTextBlock"
+                                       FontFamily="Consolas"
+                                       FontSize="13"
+                                       Text="File information will appear here."
+                                       TextWrapping="Wrap"
+                                       IsTextSelectionEnabled="True"/>
+                        </ScrollViewer>
+                    </Border>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Content="Copy All"
+                                Grid.Column="1"
+                                Click="CopyAll_Click"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                AutomationProperties.Name="Copy All Metadata Button"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Send -->
+                <StackPanel HorizontalAlignment="Center" Spacing="8" Margin="0,4,0,0">
+                    <Button x:Name="SendButton"
+                            Content="Send .exe metadata"
+                            Width="180"
+                            Height="48"
+                            Click="SendButton_Click"
+                            IsEnabled="False"
+                            AutomationProperties.Name="Send Metadata Button"/>
+                    <TextBlock x:Name="SendStatusText"
+                               Foreground="Gray"
+                               Text="Login and select a file to enable"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <TextBlock Text="Tip: You can also drop a shortcut (.lnk) to resolve the target."
+                           FontSize="12"
+                           Foreground="#666"
+                           HorizontalAlignment="Center"
+                           Margin="0,12,0,0"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>
+
