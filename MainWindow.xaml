@@ -49,10 +49,10 @@
             <!-- Homepage link pinned to the left -->
             <HyperlinkButton Grid.Column="0"
                  Content="Homepage"
-                 NavigateUri="https://defkey.com/exe"
+                 NavigateUri="https://github.com/zeynelozturk/ExeMetadataScraper"
                  VerticalAlignment="Center"
                  HorizontalAlignment="Left"
-                 ToolTipService.ToolTip="Open defkey.com/exe"
+                 ToolTipService.ToolTip="Open GitHub page for this tool"
                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                  FontSize="12"
                  Opacity="0.82"

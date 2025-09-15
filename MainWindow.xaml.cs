@@ -11,8 +11,10 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
@@ -52,6 +54,7 @@ namespace WinUIMetadataScraper
         public MainWindow()
         {
             InitializeComponent();
+            AppendVersionToTitle();
 
             _uiDispatcher = DispatcherQueue.GetForCurrentThread();
 
@@ -635,6 +638,69 @@ namespace WinUIMetadataScraper
             {
                 BrowseButton_Click(sender, e);
                 e.Handled = true;
+            }
+        }
+
+        private void AppendVersionToTitle()
+        {
+            var ver = GetAppVersion();
+            if (string.IsNullOrWhiteSpace(ver)) return;
+
+            this.Title = string.IsNullOrEmpty(this.Title)
+                ? $"v{ver}"
+                : $"{this.Title} - v{ver}";
+        }
+
+        private static string GetAppVersion()
+        {
+            // 1) Packaged (MSIX): use manifest version
+            try
+            {
+                var pv = Windows.ApplicationModel.Package.Current.Id.Version;
+                return Format(new Version(pv.Major, pv.Minor, pv.Build, pv.Revision));
+            }
+            catch
+            {
+                // Unpackaged; fall through
+            }
+
+            var asm = Assembly.GetEntryAssembly() ?? typeof(App).Assembly;
+
+            // 2) AssemblyVersion (what you want)
+            var asmVer = asm.GetName().Version;
+            if (asmVer is not null)
+                return Format(asmVer);
+
+            // 3) File/Product version
+            try
+            {
+                var fvi = FileVersionInfo.GetVersionInfo(asm.Location);
+                if (!string.IsNullOrWhiteSpace(fvi.ProductVersion))
+                    return Normalize(fvi.ProductVersion);
+                if (!string.IsNullOrWhiteSpace(fvi.FileVersion))
+                    return Normalize(fvi.FileVersion);
+            }
+            catch { }
+
+            // 4) InformationalVersion (strip +commit metadata)
+            var info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+            if (!string.IsNullOrWhiteSpace(info))
+                return Normalize(info);
+
+            return string.Empty;
+
+            static string Normalize(string s)
+            {
+                var core = s.Split('+')[0]; // drop +commit hash if present
+                return Version.TryParse(core, out var v) ? Format(v) : core;
+            }
+
+            static string Format(Version v)
+            {
+                // Drop trailing .0 parts for cleaner display
+                return v.Revision > 0 ? v.ToString()
+                     : v.Build > 0 ? $"{v.Major}.{v.Minor}.{v.Build}"
+                                      : $"{v.Major}.{v.Minor}";
             }
         }
     }
