@@ -1,49 +1,73 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
-using Windows.ApplicationModel;
-using Windows.ApplicationModel.Activation;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
-using Microsoft.UI.Xaml.Shapes;
-
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
+using System;
+using System.Runtime.InteropServices;
+using Windows.Graphics;
+using WinRT.Interop;
 
 namespace WinUIMetadataScraper
 {
-    /// <summary>
-    /// Provides application-specific behavior to supplement the default Application class.
-    /// </summary>
     public partial class App : Application
     {
-        /// <summary>
-        /// Initializes the singleton application object.  This is the first line of authored code
-        /// executed, and as such is the logical equivalent of main() or WinMain().
-        /// </summary>
         public App()
         {
-            this.InitializeComponent();
+            InitializeComponent();
         }
 
-        /// <summary>
-        /// Invoked when the application is launched.
-        /// </summary>
-        /// <param name="args">Details about the launch request and process.</param>
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             m_window = new MainWindow();
             m_window.Activate();
+
+            // Apply after activation so OS restore doesn’t override it.
+            m_window.DispatcherQueue.TryEnqueue(() =>
+                SetInitialClientSizeAndCenter(m_window,
+                    dipWidth: 600, dipHeight: 880,
+                    minDipWidth: 500, minDipHeight: 640));
         }
+
+        private static void SetInitialClientSizeAndCenter(Window window, int dipWidth, int dipHeight, int minDipWidth, int minDipHeight)
+        {
+            var hWnd = WindowNative.GetWindowHandle(window);
+            var windowId = Win32Interop.GetWindowIdFromWindow(hWnd);
+            var appWindow = AppWindow.GetFromWindowId(windowId);
+            if (appWindow is null) return;
+
+            // If the OS restored the window maximized, normalize first.
+            if (appWindow.Presenter is OverlappedPresenter p)
+            {
+                try { p.Restore(); } catch { /* ignore */ }
+            }
+
+            // Reliable per-monitor DPI scale (avoids XamlRoot timing issues)
+            double scale = GetDpiForWindow(hWnd) / 96.0;
+
+            int dipW = Math.Max(dipWidth, minDipWidth);
+            int dipH = Math.Max(dipHeight, minDipHeight);
+
+            int clientPxW = (int)Math.Round(dipW * scale);
+            int clientPxH = (int)Math.Round(dipH * scale);
+
+            var displayArea = DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary);
+            var workArea = displayArea.WorkArea;
+
+            // Ensure not oversized and not too small relative to screen
+            int minHeightPxByRatio = (int)(workArea.Height * 0.58); // keep at least ~58% of work area height
+            clientPxW = Math.Min(clientPxW, Math.Max(600, workArea.Width - 40));  // margin from edges
+            clientPxH = Math.Max(clientPxH, minHeightPxByRatio);
+            clientPxH = Math.Min(clientPxH, Math.Max(400, workArea.Height - 80));
+
+            appWindow.ResizeClient(new SizeInt32(clientPxW, clientPxH));
+
+            var outer = appWindow.Size;
+            int x = workArea.X + (workArea.Width - outer.Width) / 2;
+            int y = workArea.Y + (workArea.Height - outer.Height) / 2;
+            appWindow.Move(new PointInt32(x, y));
+        }
+
+        [DllImport("User32.dll")]
+        private static extern uint GetDpiForWindow(IntPtr hWnd);
 
         private Window? m_window;
     }

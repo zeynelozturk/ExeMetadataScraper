@@ -17,9 +17,10 @@
             <SolidColorBrush x:Key="DropZoneDragOverBackgroundBrush" Color="#FFE3F2FD"/>
             <SolidColorBrush x:Key="DropZoneHighlightBorderBrush" Color="#FF1976D2"/>
 
+            <!-- Use MinHeight so Compact density can reduce where possible -->
             <Style x:Key="TopBarPrimaryButton" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
                 <Setter Property="MinWidth" Value="160"/>
-                <Setter Property="Height" Value="40"/>
+                <Setter Property="MinHeight" Value="40"/>
                 <Setter Property="CornerRadius" Value="8"/>
                 <Setter Property="Padding" Value="16,8"/>
             </Style>
@@ -27,7 +28,7 @@
             <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
                 <Setter Property="CornerRadius" Value="6"/>
                 <Setter Property="MinWidth" Value="90"/>
-                <Setter Property="Height" Value="34"/>
+                <Setter Property="MinHeight" Value="34"/>
                 <Setter Property="Padding" Value="12,6"/>
             </Style>
         </Grid.Resources>
@@ -39,33 +40,52 @@
         </Grid.RowDefinitions>
 
         <!-- Top Bar -->
-        <StackPanel Grid.Row="0"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Margin="0,4,14,0"
-                    Spacing="10">
-            <Button x:Name="LoginButton"
-                    Click="LoginButton_Click"
-                    Style="{StaticResource TopBarPrimaryButton}"
-                    AutomationProperties.Name="Login Button">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE77B;"/>
-                    <TextBlock Text="Login"/>
-                </StackPanel>
-            </Button>
-            <TextBlock x:Name="AuthStatusTextBlock"
-                       Text="Not authenticated"
-                       FontWeight="Bold"
-                       Foreground="Gray"
-                       VerticalAlignment="Center"/>
-            <Button x:Name="LogoutButton"
-                    Content="Logout"
-                    Width="100"
-                    Height="40"
-                    Visibility="Collapsed"
-                    Click="LogoutButton_Click"
-                    AutomationProperties.Name="Logout Button"/>
-        </StackPanel>
+        <Grid Grid.Row="0" Margin="14,4,14,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Homepage link pinned to the left -->
+            <HyperlinkButton Grid.Column="0"
+                 Content="Homepage"
+                 NavigateUri="https://defkey.com/exe"
+                 VerticalAlignment="Center"
+                 HorizontalAlignment="Left"
+                 ToolTipService.ToolTip="Open defkey.com/exe"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                 FontSize="12"
+                 Opacity="0.82"
+                 Padding="0"/>
+
+            <!-- Auth actions pinned to the right -->
+            <StackPanel Grid.Column="1"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="10">
+                <Button x:Name="LoginButton"
+                        Click="LoginButton_Click"
+                        Style="{StaticResource TopBarPrimaryButton}"
+                        AutomationProperties.Name="Login Button">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE77B;"/>
+                        <TextBlock Text="Login"/>
+                    </StackPanel>
+                </Button>
+                <TextBlock x:Name="AuthStatusTextBlock"
+                           Text="Not authenticated"
+                           FontWeight="Bold"
+                           Foreground="Gray"
+                           VerticalAlignment="Center"/>
+                <Button x:Name="LogoutButton"
+                        Content="Logout"
+                        Width="100"
+                        MinHeight="40"
+                        Visibility="Collapsed"
+                        Click="LogoutButton_Click"
+                        AutomationProperties.Name="Logout Button"/>
+            </StackPanel>
+        </Grid>
 
         <!-- InfoBar (future non-modal messaging; keep collapsed initially) -->
         <InfoBar x:Name="StatusInfoBar"
@@ -80,14 +100,15 @@
         <ScrollViewer Grid.Row="2"
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel HorizontalAlignment="Center"
-                        Width="640"
+                        MaxWidth="640"
                         Spacing="28"
                         Margin="0,8,0,16">
 
                 <!-- Drop Zone -->
                 <Border x:Name="DropZone"
                         HorizontalAlignment="Stretch"
-                        Height="210"
+                        MinHeight="170"
+                        MaxHeight="220"
                         CornerRadius="10"
                         Background="{StaticResource DropZoneBackgroundBrush}"
                         BorderBrush="{StaticResource DropZoneBorderBrush}"
@@ -114,6 +135,16 @@
                         </StackPanel>
                     </Grid>
                 </Border>
+
+                <!-- Tip directly under the drop area (link removed here) -->
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            Spacing="6"
+                            Margin="0,6,0,0">
+                    <TextBlock Text="Tip: You can also drop a shortcut (.lnk) to resolve the target."
+                               FontSize="12"
+                               Foreground="#666"/>
+                </StackPanel>
 
                 <Button Content="Browse"
                         Click="BrowseButton_Click"
@@ -170,7 +201,7 @@
                             Padding="16,14,16,12">
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"
-                                      Height="260">
+                                      MaxHeight="260">
                             <TextBlock x:Name="FileMetadataTextBlock"
                                        FontFamily="Consolas"
                                        FontSize="13"
@@ -195,10 +226,18 @@
 
                 <!-- Send -->
                 <StackPanel HorizontalAlignment="Center" Spacing="8" Margin="0,4,0,0">
+                    <TextBlock x:Name="DraftsNoteText"
+                               Text="Note: When you click Send, the .exe metadata entry will be added to your Drafts."
+                               TextWrapping="Wrap"
+                               Foreground="#666"
+                               FontSize="12"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,4"/>
                     <Button x:Name="SendButton"
                             Content="Send .exe metadata"
-                            Width="180"
-                            Height="48"
+                            MinWidth="180"
+                            MinHeight="48"
+                            HorizontalAlignment="Center"
                             Click="SendButton_Click"
                             IsEnabled="False"
                             AutomationProperties.Name="Send Metadata Button"/>
@@ -208,11 +247,7 @@
                                HorizontalAlignment="Center"/>
                 </StackPanel>
 
-                <TextBlock Text="Tip: You can also drop a shortcut (.lnk) to resolve the target."
-                           FontSize="12"
-                           Foreground="#666"
-                           HorizontalAlignment="Center"
-                           Margin="0,12,0,0"/>
+                <!-- removed old bottom tip -->
             </StackPanel>
         </ScrollViewer>
     </Grid>
