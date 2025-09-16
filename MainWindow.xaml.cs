@@ -166,13 +166,12 @@ namespace WinUIMetadataScraper
         // ----------------------------------------------------------------------------------
         private void UpdateSendButtonState()
         {
-            // While sending: always disabled and show progress text
+            // While sending: always disabled and show progress text only on the button
             if (_isSending)
             {
                 SendButton.IsEnabled = false;
                 SendButton.Content = "Sending...";
-                SendStatusText.Visibility = Visibility.Visible;
-                SendStatusText.Text = "Sending...";
+                SendStatusText.Visibility = Visibility.Collapsed; // hide helper text during send
                 return;
             }
 
