@@ -48,6 +48,9 @@ namespace WinUIMetadataScraper
         private StreamSocketListener? _listener;
         private readonly DispatcherQueue _uiDispatcher;
 
+        // New: prevent re-entrancy and show progress
+        private bool _isSending;
+
         // ----------------------------------------------------------------------------------
         // Init
         // ----------------------------------------------------------------------------------
@@ -163,8 +166,20 @@ namespace WinUIMetadataScraper
         // ----------------------------------------------------------------------------------
         private void UpdateSendButtonState()
         {
+            // While sending: always disabled and show progress text
+            if (_isSending)
+            {
+                SendButton.IsEnabled = false;
+                SendButton.Content = "Sending...";
+                SendStatusText.Visibility = Visibility.Visible;
+                SendStatusText.Text = "Sending...";
+                return;
+            }
+
+            // Normal state: compute enabled based on auth + file
             bool hasFile = _lastMetadata != null && !string.IsNullOrEmpty(_lastFilePath);
             SendButton.IsEnabled = _isAuthenticated && hasFile;
+            SendButton.Content = "Send .exe metadata";
 
             if (SendButton.IsEnabled)
             {
@@ -285,52 +300,64 @@ namespace WinUIMetadataScraper
         // ----------------------------------------------------------------------------------
         private async void SendButton_Click(object sender, RoutedEventArgs e)
         {
+            if (_isSending) return;
+
             if (_lastMetadata == null || string.IsNullOrEmpty(_lastFilePath))
             {
                 await ShowMessageDialog("No file metadata to send. Please select a file first.");
                 return;
             }
 
-            if (!await EnsureAuthenticatedAsync().ConfigureAwait(true))
-            {
-                await ShowMessageDialog("Authentication failed; cannot send.");
-                return;
-            }
-
-            string token = _tokenStorage.GetToken();
-            if (string.IsNullOrEmpty(token))
-            {
-                await ShowMessageDialog("No valid token after login attempt.");
-                return;
-            }
-
-            string apiUrl = ApiRoutes.GetUploadMetadataUrl();
-            string json = FileMetadataSerializer.Serialize(_lastMetadata, _lastCustomData);
+            _isSending = true;
+            UpdateSendButtonState();
 
             try
             {
-                using var httpClient = new HttpClient();
-                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-                using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-                var response = await httpClient.PostAsync(apiUrl, content).ConfigureAwait(true);
-
-                string resp = await response.Content.ReadAsStringAsync().ConfigureAwait(true);
-                if (response.IsSuccessStatusCode)
+                if (!await EnsureAuthenticatedAsync().ConfigureAwait(true))
                 {
-                    await ShowMessageDialog("Metadata sent successfully! It is added to your drafts.");
-                    ClearFileState();
-                    ResetDropZoneVisual();
-                    UpdateSendButtonState();
+                    await ShowMessageDialog("Authentication failed; cannot send.");
+                    return;
                 }
-                else
+
+                string token = _tokenStorage.GetToken();
+                if (string.IsNullOrEmpty(token))
                 {
-                    await ShowMessageDialog($"Failed to send metadata. Status: {response.StatusCode}\n{resp}");
+                    await ShowMessageDialog("No valid token after login attempt.");
+                    return;
+                }
+
+                string apiUrl = ApiRoutes.GetUploadMetadataUrl();
+                string json = FileMetadataSerializer.Serialize(_lastMetadata, _lastCustomData);
+
+                try
+                {
+                    using var httpClient = new HttpClient();
+                    httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                    using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+                    var response = await httpClient.PostAsync(apiUrl, content).ConfigureAwait(true);
+
+                    string resp = await response.Content.ReadAsStringAsync().ConfigureAwait(true);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await ShowMessageDialog("Metadata sent successfully! It is added to your drafts.");
+                        ClearFileState();
+                        ResetDropZoneVisual();
+                    }
+                    else
+                    {
+                        await ShowMessageDialog($"Failed to send metadata. Status: {response.StatusCode}\n{resp}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await ShowMessageDialog($"Error sending metadata: {ex.Message}");
                 }
             }
-            catch (Exception ex)
+            finally
             {
-                await ShowMessageDialog($"Error sending metadata: {ex.Message}");
+                _isSending = false;
+                UpdateSendButtonState();
             }
         }
 
