@@ -3,6 +3,7 @@
        x:Class="WinUIMetadataScraper.MainWindow"
        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+       xmlns:local="using:WinUIMetadataScraper"
        Title="Exe Metadata Scraper for Defkey">
 
     <Grid x:Name="RootGrid"
@@ -151,6 +152,64 @@
                         Style="{StaticResource SecondaryButtonStyle}"
                         HorizontalAlignment="Center"
                         AutomationProperties.Name="Browse Executable Button"/>
+
+
+                <!-- Selected Files Panel -->
+                <StackPanel Margin="0,12,0,0">
+                    <TextBlock Text="Selected executables" FontWeight="SemiBold" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,4">
+                        <Button x:Name="ClearAllButton"
+                                Content="Clear All"
+                                Click="ClearAllButton_Click"
+                                IsEnabled="{x:Bind HasPending, Mode=OneWay}"/>
+                        <TextBlock Text="{x:Bind FormatItemCount(Pending.Count), Mode=OneWay}"
+                   VerticalAlignment="Center"
+                   Foreground="#555"/>
+                    </StackPanel>
+
+                    <ListView x:Name="SelectedFilesList"
+              ItemsSource="{x:Bind Pending}"
+              IsItemClickEnabled="True"
+              ItemClick="SelectedFilesList_ItemClick"
+              SelectionMode="None"
+              BorderThickness="1"
+              BorderBrush="{ThemeResource SystemControlForegroundBaseLowBrush}"
+              MaxHeight="220"
+              HorizontalAlignment="Stretch"
+              ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListView.ItemTemplate>
+    <DataTemplate x:DataType="local:PendingItem">
+        <Grid Padding="4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Text="{x:Bind FileName}" 
+                               Grid.Column="0"
+                               TextTrimming="CharacterEllipsis"/>
+
+                                    <TextBlock Text="{x:Bind FilePath}" 
+                               Grid.Column="1"
+                               Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTipService.ToolTip="{x:Bind FilePath}"/>
+
+                                    <Button Grid.Column="2"
+                            Content="X"
+                            ToolTipService.ToolTip="Remove"
+                            Tag="{x:Bind FilePath}"
+                            Margin="8,0,0,0"
+                            Click="RemovePending_Click"
+                            VerticalAlignment="Center"
+                            MinWidth="28"/>
+                                </Grid>
+    </DataTemplate>
+</ListView.ItemTemplate>
+                    </ListView>
+                </StackPanel>
+
 
                 <!-- File Header -->
                 <StackPanel Orientation="Horizontal" Spacing="14">

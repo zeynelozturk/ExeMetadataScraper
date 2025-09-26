@@ -11,7 +11,9 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
@@ -51,15 +53,11 @@ namespace WinUIMetadataScraper
         // New: prevent re-entrancy and show progress
         private bool _isSending;
 
-        private sealed class PendingItem
-        {
-            public ProgramExeMetaData? Metadata { get; set; }
-            public CustomFileData? CustomData { get; set; }
-            public string? FilePath { get; set; }
-            public string? FileName => System.IO.Path.GetFileName(FilePath);
-        }
+        private readonly ObservableCollection<PendingItem> _pending = new();
+        public ObservableCollection<PendingItem> Pending => _pending;
 
-        private readonly List<PendingItem> _pending = new();
+        // Expose boolean for XAML instead of binding expression Pending.Count > 0
+        public bool HasPending => _pending.Count > 0;
 
         private static bool IsExePath(string path) =>
             path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
@@ -76,6 +74,9 @@ namespace WinUIMetadataScraper
 
             _authService = new AuthService();
             _tokenStorage = new TokenStorage();
+
+            // Update bindings whenever collection changes so HasPending re-evaluates
+            _pending.CollectionChanged += (_, __) => Bindings.Update();
 
             _ = InitializeAuthStateAsync();
             UpdateSendButtonState();
@@ -835,6 +836,19 @@ namespace WinUIMetadataScraper
         {
             if (_pending.Count == 0)
             {
+                ClearFileState(); // already resets UI
+                return;
+            }
+
+            // Show first item or keep previously selected visible
+            var first = _pending[0];
+            await ShowMetadataForItemAsync(first);
+        }
+
+        private async Task ShowMetadataForItemAsync(PendingItem item)
+        {
+            if (item?.Metadata == null)
+            {
                 FileNameTextBlock.Text = "";
                 FilePathValueTextBlock.Text = "";
                 FileMetadataTextBlock.Text = PlaceholderMetadataText;
@@ -842,33 +856,54 @@ namespace WinUIMetadataScraper
                 return;
             }
 
-            var first = _pending[0];
+            FileNameTextBlock.Text = item.FileName;
+            FilePathValueTextBlock.Text = item.FilePath;
 
-            if (_pending.Count == 1)
+            var m = item.Metadata;
+            FileMetadataTextBlock.Text =
+                $"File Version: {m.FileVersion}\n" +
+                $"Product Name: {m.ProductName}\n" +
+                $"File Description: {m.FileDescription}\n" +
+                $"Company Name: {m.CompanyName}\n" +
+                $"Original Filename: {m.OriginalFileName}\n" +
+                $"Internal Name: {m.InternalName}\n" +
+                $"Product Version: {m.ProductVersion}\n" +
+                $"Copyright: {m.LegalCopyright}";
+
+            if (!string.IsNullOrEmpty(item.FilePath))
+                await UpdateFileIconAsync(item.FilePath);
+        }
+
+        // New: remove single pending item (bound to per-row X button)
+        private void RemovePending_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string path)
             {
-                FileNameTextBlock.Text = first.FileName;
-                FilePathValueTextBlock.Text = first.FilePath;
+                var item = _pending.FirstOrDefault(p => string.Equals(p.FilePath, path, StringComparison.OrdinalIgnoreCase));
+                if (item != null)
+                    _pending.Remove(item);
 
-                var m = first.Metadata;
-                FileMetadataTextBlock.Text =
-                    $"File Version: {m.FileVersion}\n" +
-                    $"Product Name: {m.ProductName}\n" +
-                    $"File Description: {m.FileDescription}\n" +
-                    $"Company Name: {m.CompanyName}\n" +
-                    $"Original Filename: {m.OriginalFileName}\n" +
-                    $"Internal Name: {m.InternalName}\n" +
-                    $"Product Version: {m.ProductVersion}\n" +
-                    $"Copyright: {m.LegalCopyright}";
-
-                await UpdateFileIconAsync(first.FilePath);
-            }
-            else
-            {
-                FileNameTextBlock.Text = $"{_pending.Count} .exe files selected";
-                FilePathValueTextBlock.Text = first.FilePath;
-                FileMetadataTextBlock.Text = "Multiple files selected. Ready to send metadata for all selected .exe files.";
-                await UpdateFileIconAsync(first.FilePath);
+                _ = UpdateSelectionUiAsync();
+                UpdateSendButtonState();
             }
         }
+
+        // New: clear all pending
+        private void ClearAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            _pending.Clear();
+            ClearFileState();
+            UpdateSendButtonState();
+        }
+
+        // New: clicking an item in list shows its metadata
+        private async void SelectedFilesList_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            if (e.ClickedItem is PendingItem pi)
+                await ShowMetadataForItemAsync(pi);
+        }
+
+        public string FormatItemCount(int count) => $"{count} item(s)";
+
     }
 }
