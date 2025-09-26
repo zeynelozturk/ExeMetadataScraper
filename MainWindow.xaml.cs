@@ -51,6 +51,19 @@ namespace WinUIMetadataScraper
         // New: prevent re-entrancy and show progress
         private bool _isSending;
 
+        private sealed class PendingItem
+        {
+            public ProgramExeMetaData? Metadata { get; set; }
+            public CustomFileData? CustomData { get; set; }
+            public string? FilePath { get; set; }
+            public string? FileName => System.IO.Path.GetFileName(FilePath);
+        }
+
+        private readonly List<PendingItem> _pending = new();
+
+        private static bool IsExePath(string path) =>
+            path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+
         // ----------------------------------------------------------------------------------
         // Init
         // ----------------------------------------------------------------------------------
@@ -175,10 +188,12 @@ namespace WinUIMetadataScraper
                 return;
             }
 
-            // Normal state: compute enabled based on auth + file
-            bool hasFile = _lastMetadata != null && !string.IsNullOrEmpty(_lastFilePath);
-            SendButton.IsEnabled = _isAuthenticated && hasFile;
-            SendButton.Content = "Send .exe metadata";
+            // Normal state: compute enabled based on auth + selection
+            bool hasFiles = _pending.Count > 0;
+            SendButton.IsEnabled = _isAuthenticated && hasFiles;
+            SendButton.Content = hasFiles
+                ? (_pending.Count == 1 ? "Send .exe metadata" : $"Send {_pending.Count} .exe metadata items")
+                : "Send .exe metadata";
 
             if (SendButton.IsEnabled)
             {
@@ -188,12 +203,12 @@ namespace WinUIMetadataScraper
             else
             {
                 SendStatusText.Visibility = Visibility.Visible;
-                if (!_isAuthenticated && !hasFile)
-                    SendStatusText.Text = "Login and select a file to enable";
+                if (!_isAuthenticated && !hasFiles)
+                    SendStatusText.Text = "Login and select file(s) to enable";
                 else if (!_isAuthenticated)
                     SendStatusText.Text = "Login to enable";
                 else
-                    SendStatusText.Text = "Select a file to enable";
+                    SendStatusText.Text = "Select file(s) to enable";
             }
         }
 
@@ -203,6 +218,9 @@ namespace WinUIMetadataScraper
             FilePathValueTextBlock.Text = "";
             FileMetadataTextBlock.Text = PlaceholderMetadataText;
             FileIconImage.Source = null;
+
+            _pending.Clear(); // clear multi-selection
+
             _lastMetadata = null;
             _lastCustomData = new CustomFileData();
             _lastFilePath = null;
@@ -301,9 +319,9 @@ namespace WinUIMetadataScraper
         {
             if (_isSending) return;
 
-            if (_lastMetadata == null || string.IsNullOrEmpty(_lastFilePath))
+            if (_pending.Count == 0)
             {
-                await ShowMessageDialog("No file metadata to send. Please select a file first.");
+                await ShowMessageDialog("No file metadata to send. Please select file(s) first.");
                 return;
             }
 
@@ -325,15 +343,23 @@ namespace WinUIMetadataScraper
                     return;
                 }
 
-                string apiUrl = ApiRoutes.GetUploadMetadataUrl();
-                string json = FileMetadataSerializer.Serialize(_lastMetadata, _lastCustomData);
+                string apiUrl = ApiRoutes.GetUploadMetadataBatchUrl();
+
+                // Build JSON array from all pending items
+                var payloads = new string[_pending.Count];
+                for (int i = 0; i < _pending.Count; i++)
+                {
+                    var p = _pending[i];
+                    payloads[i] = FileMetadataSerializer.Serialize(p.Metadata, p.CustomData);
+                }
+                string jsonArray = "[" + string.Join(",", payloads) + "]";
 
                 try
                 {
                     using var httpClient = new HttpClient();
                     httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-                    using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+                    using var content = new StringContent(jsonArray, System.Text.Encoding.UTF8, "application/json");
                     var response = await httpClient.PostAsync(apiUrl, content).ConfigureAwait(true);
 
                     string resp = await response.Content.ReadAsStringAsync().ConfigureAwait(true);
@@ -595,18 +621,18 @@ namespace WinUIMetadataScraper
             {
                 SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.Desktop
             };
+
+            // Constrain to .exe only
+            picker.FileTypeFilter.Clear();
             picker.FileTypeFilter.Add(".exe");
-            picker.FileTypeFilter.Add(".bat");
-            picker.FileTypeFilter.Add(".cmd");
-            picker.FileTypeFilter.Add(".msi");
 
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
 
-            var file = await picker.PickSingleFileAsync();
-            if (file != null)
+            var files = await picker.PickMultipleFilesAsync();
+            if (files != null && files.Count > 0)
             {
-                await HandleFileAsync(file);
+                await HandleFilesAsync(files);
             }
         }
 
@@ -615,8 +641,15 @@ namespace WinUIMetadataScraper
             if (e.DataView.Contains(StandardDataFormats.StorageItems))
             {
                 var items = await e.DataView.GetStorageItemsAsync();
-                if (items.Count > 0 && items[0] is StorageFile file)
-                    await HandleFileAsync(file);
+                var files = new List<StorageFile>();
+                foreach (var item in items)
+                {
+                    if (item is StorageFile f)
+                        files.Add(f);
+                }
+
+                if (files.Count > 0)
+                    await HandleFilesAsync(files);
             }
         }
 
@@ -727,6 +760,114 @@ namespace WinUIMetadataScraper
                 return v.Revision > 0 ? v.ToString()
                      : v.Build > 0 ? $"{v.Major}.{v.Minor}.{v.Build}"
                                       : $"{v.Major}.{v.Minor}";
+            }
+        }
+
+        private async Task HandleFilesAsync(IReadOnlyList<StorageFile> files)
+        {
+            int added = 0;
+            foreach (var file in files)
+            {
+                string filePath = file.Path;
+
+                // Skip URL files
+                if (file.FileType.Equals(".url", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // Resolve .lnk shortcuts (only valid for drag/drop; picker won't allow .lnk)
+                if (file.FileType.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+                {
+                    var resolved = ResolveShortcut(filePath) ?? "";
+                    if (string.IsNullOrEmpty(resolved) || !IsExePath(resolved))
+                        continue;
+                    if (await TryAddFileByPathAsync(resolved))
+                        added++;
+                    continue;
+                }
+
+                if (!IsExePath(filePath))
+                    continue;
+
+                if (await TryAddFileByPathAsync(filePath))
+                    added++;
+            }
+
+            if (added == 0)
+            {
+                await ShowMessageDialog("No valid .exe files selected.");
+            }
+
+            await UpdateSelectionUiAsync();
+            UpdateSendButtonState();
+        }
+
+        private async Task<bool> TryAddFileByPathAsync(string filePath)
+        {
+            try
+            {
+                // Warn (once per file) if looks like an installer, but still add
+                if (InstallerDetector.IsInstaller(filePath))
+                {
+                    await ShowMessageDialog("This file appears to be an installer. Installer metadata may be declined.");
+                }
+
+                var metadata = ExeFileMetaDataHelper.GetMetadata(filePath);
+                var iconData = ExeFileMetaDataHelper.ExtractExeIconData(filePath);
+
+                var item = new PendingItem
+                {
+                    Metadata = metadata,
+                    CustomData = new CustomFileData { ExeIconDataList = iconData ?? new List<ExeIconData>() },
+                    FilePath = filePath
+                };
+
+                _pending.Add(item);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await ShowMessageDialog($"Failed to read file metadata for \"{filePath}\": {ex.Message}");
+                return false;
+            }
+        }
+
+        private async Task UpdateSelectionUiAsync()
+        {
+            if (_pending.Count == 0)
+            {
+                FileNameTextBlock.Text = "";
+                FilePathValueTextBlock.Text = "";
+                FileMetadataTextBlock.Text = PlaceholderMetadataText;
+                FileIconImage.Source = null;
+                return;
+            }
+
+            var first = _pending[0];
+
+            if (_pending.Count == 1)
+            {
+                FileNameTextBlock.Text = first.FileName;
+                FilePathValueTextBlock.Text = first.FilePath;
+
+                var m = first.Metadata;
+                FileMetadataTextBlock.Text =
+                    $"File Version: {m.FileVersion}\n" +
+                    $"Product Name: {m.ProductName}\n" +
+                    $"File Description: {m.FileDescription}\n" +
+                    $"Company Name: {m.CompanyName}\n" +
+                    $"Original Filename: {m.OriginalFileName}\n" +
+                    $"Internal Name: {m.InternalName}\n" +
+                    $"Product Version: {m.ProductVersion}\n" +
+                    $"Copyright: {m.LegalCopyright}";
+
+                await UpdateFileIconAsync(first.FilePath);
+            }
+            else
+            {
+                FileNameTextBlock.Text = $"{_pending.Count} .exe files selected";
+                FilePathValueTextBlock.Text = first.FilePath;
+                FileMetadataTextBlock.Text = "Multiple files selected. Ready to send metadata for all selected .exe files.";
+                await UpdateFileIconAsync(first.FilePath);
             }
         }
     }

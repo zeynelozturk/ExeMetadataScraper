@@ -12,8 +12,7 @@ namespace WinUIMetadataScraper
         }
 
         public static string GetUploadMetadataUrl() => $"{GetBaseUrl()}/api/exe-lookup/upload-metadata";
-
+        public static string GetUploadMetadataBatchUrl() => $"{GetBaseUrl()}/api/exe-lookup/upload-metadata-batch";
         public static string GetDisplayNameUrl() => $"{GetBaseUrl()}/api/auth/get-user-display-name";
-
     }
 }
