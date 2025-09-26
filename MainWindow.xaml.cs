@@ -96,10 +96,10 @@ namespace WinUIMetadataScraper
             IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
             var appWindow = AppWindow.GetFromWindowId(windowId);
-            appWindow?.Resize(new SizeInt32(1050, 1550));
+            appWindow?.Resize(new SizeInt32(900, 820)); // reduced height & width
             if (appWindow?.Presenter is OverlappedPresenter p)
             {
-                p.IsResizable = false;
+                p.IsResizable = true; // allow user to resize now
                 p.IsMaximizable = false;
             }
 
@@ -806,7 +806,6 @@ namespace WinUIMetadataScraper
         {
             try
             {
-                // Warn (once per file) if looks like an installer, but still add
                 if (InstallerDetector.IsInstaller(filePath))
                 {
                     await ShowMessageDialog("This file appears to be an installer. Installer metadata may be declined.");
@@ -814,12 +813,22 @@ namespace WinUIMetadataScraper
 
                 var metadata = ExeFileMetaDataHelper.GetMetadata(filePath);
                 var iconData = ExeFileMetaDataHelper.ExtractExeIconData(filePath);
+                Microsoft.UI.Xaml.Media.ImageSource? iconSource = null;
+                var firstIconPng = iconData?.OrderBy(i => i.Width * i.Height).FirstOrDefault()?.PngData;
+                if (firstIconPng != null && firstIconPng.Length > 0)
+                {
+                    using var ms = new MemoryStream(firstIconPng);
+                    var bitmap = new BitmapImage();
+                    await bitmap.SetSourceAsync(ms.AsRandomAccessStream());
+                    iconSource = bitmap;
+                }
 
                 var item = new PendingItem
                 {
                     Metadata = metadata,
                     CustomData = new CustomFileData { ExeIconDataList = iconData ?? new List<ExeIconData>() },
-                    FilePath = filePath
+                    FilePath = filePath,
+                    IconSource = iconSource
                 };
 
                 _pending.Add(item);
@@ -854,18 +863,21 @@ namespace WinUIMetadataScraper
                 MetadataGrid.Children.Clear();
                 MetadataGrid.RowDefinitions.Clear();
                 FileIconImage.Source = null;
-                _lastFilePath = null; // ensure cleared (add this if missing)
+                _lastFilePath = null;
+                //SelectedHeader.Visibility = Visibility.Collapsed;
                 return;
             }
 
+            //SelectedHeader.Visibility = Visibility.Visible;
             FileNameTextBlock.Text = item.FileName;
             FilePathValueTextBlock.Text = item.FilePath;
-            _lastFilePath = item.FilePath; // ADD THIS LINE
+            _lastFilePath = item.FilePath;
+            if (item.IconSource != null) FileIconImage.Source = item.IconSource;
 
             var m = item.Metadata;
             RenderMetadataGrid(m);
 
-            if (!string.IsNullOrEmpty(item.FilePath))
+            if (!string.IsNullOrEmpty(item.FilePath) && item.IconSource == null)
                 await UpdateFileIconAsync(item.FilePath);
         }
 
@@ -942,6 +954,57 @@ namespace WinUIMetadataScraper
         {
             if (e.ClickedItem is PendingItem pi)
                 await ShowMetadataForItemAsync(pi);
+        }
+
+        // New: double-tap to show metadata details in dialog
+        private async void SelectedFilesList_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (e.OriginalSource is FrameworkElement fe && fe.DataContext is PendingItem pi)
+            {
+                await ShowDetailsDialogAsync(pi);
+            }
+        }
+
+        private async Task ShowDetailsDialogAsync(PendingItem item)
+        {
+            if (item.Metadata == null) return;
+
+            var sb = new System.Text.StringBuilder();
+            var m = item.Metadata;
+            void Line(string label, string? val)
+            {
+                if (!string.IsNullOrWhiteSpace(val)) sb.AppendLine(label + ": " + val);
+            }
+            Line("File Name", item.FileName);
+            Line("Path", item.FilePath);
+            Line("Product Name", m.ProductName);
+            Line("File Version", m.FileVersion);
+            Line("Product Version", m.ProductVersion);
+            Line("Description", m.FileDescription);
+            Line("Company", m.CompanyName);
+            Line("Original Name", m.OriginalFileName);
+            Line("Internal Name", m.InternalName);
+            Line("Architecture", m.Architecture);
+            if (m.IsDigitallySigned.HasValue) Line("Digitally Signed", m.IsDigitallySigned.Value ? "Yes" : "No");
+            if (m.SignatureInfo?.Issuer != null) Line("Issuer", m.SignatureInfo.Issuer);
+            if (m.SignatureInfo?.ValidTo != null) Line("Valid To", m.SignatureInfo.ValidTo?.ToString("u"));
+
+            var dialog = new ContentDialog
+            {
+                Title = item.FileName,
+                Content = new ScrollViewer { Content = new TextBlock { Text = sb.ToString(), FontFamily = new FontFamily("Consolas"), TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true } },
+                CloseButtonText = "Close",
+                XamlRoot = this.Content.XamlRoot,
+                PrimaryButtonText = "Copy",
+                DefaultButton = ContentDialogButton.Primary
+            };
+            dialog.PrimaryButtonClick += (_, __) =>
+            {
+                var dp = new DataPackage();
+                dp.SetText(sb.ToString());
+                Clipboard.SetContent(dp);
+            };
+            await dialog.ShowAsync();
         }
 
         public string FormatItemCount(int count) => $"{count} item(s)";

@@ -120,173 +120,86 @@
                  Title="Status"
                  Message=""/>
 
-        <!-- Main Scrollable Content -->
-        <Grid Grid.Row="2" Margin="16,8,16,12">
-    <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="430"/>
-        <ColumnDefinition Width="16"/> <!-- gutter -->
-        <ColumnDefinition Width="*"/>
-    </Grid.ColumnDefinitions>
+        <!-- Single Column Main Content -->
+        <ScrollViewer Grid.Row="2" Margin="16,8,16,12" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="16" MaxWidth="780">
 
-    <!-- LEFT: Intake + List -->
-    <StackPanel Grid.Column="0" Spacing="12">
-        <!-- Drop Zone (reduced visual dominance) -->
-        <Border x:Name="DropZone"
-                MinHeight="110"
-                Style="{StaticResource CardBorderStyle}"
-                AllowDrop="True"
-                Drop="OnFileDrop"
-                DragOver="OnDragOver"
-                DragLeave="DropZone_DragLeave"
-                Tapped="DropZone_Tapped"
-                AutomationProperties.Name="Executable drop area and browse button">
-            <Grid>
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
-                    <FontIcon Glyph="&#xE898;" FontSize="22" Foreground="{StaticResource AccentBrush}"/>
-                    <TextBlock Text="Drop .exe or Browse" FontSize="13" />
-                </StackPanel>
-                <Button Content="Browse"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Bottom"
-                        Margin="0,0,4,4"
-                        Click="BrowseButton_Click"
-                        MinWidth="80"
-                        MinHeight="30"
-                        Style="{StaticResource SecondaryButtonStyle}"/>
-            </Grid>
-        </Border>
-
-        <!-- Header row with badge -->
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="Files" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
-                        <InfoBadge Value="{x:Bind Pending.Count, Mode=OneWay}"
-           Style="{StaticResource InformationalIconInfoBadgeStyle}" />
-                    </StackPanel>
-            <Button Grid.Column="2"
-                    Margin="12,0,0,0"
-                    Content="Clear"
-                    Click="ClearAllButton_Click"
-                    IsEnabled="{x:Bind HasPending, Mode=OneWay}"
-                    MinWidth="58"/>
-        </Grid>
-
-        <!-- File list -->
-        <ListView x:Name="SelectedFilesList"
-                  ItemsSource="{x:Bind Pending}"
-                  IsItemClickEnabled="True"
-                  ItemClick="SelectedFilesList_ItemClick"
-                  SelectionMode="None"
-                  MaxHeight="180">
-            <ListView.ItemTemplate>
-                <DataTemplate x:DataType="local:PendingItem">
-                    <Grid ColumnSpacing="6" Padding="4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="24"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE7C3;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                        <StackPanel Grid.Column="1" Spacing="2">
-                            <TextBlock Text="{x:Bind FileName}" FontSize="12" FontWeight="SemiBold" />
-                            <TextBlock Text="{x:Bind FilePath}"
-                                       FontSize="11"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       TextTrimming="CharacterEllipsis"
-                                       ToolTipService.ToolTip="{x:Bind FilePath}"/>
+                <!-- Selected file header (icon + name + path) -->
+                <Border Style="{StaticResource CardBorderStyle}" Padding="10" x:Name="SelectedHeader" Visibility="Collapsed">
+                    <StackPanel Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Border Width="56" Height="56" CornerRadius="8" Background="#22000000">
+                                <Image x:Name="FileIconImage" Stretch="Uniform"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="4" Width="560">
+                                <TextBlock x:Name="FileNameTextBlock" FontSize="18" FontWeight="Bold" Text="" />
+                                <TextBlock x:Name="FilePathValueTextBlock" Style="{StaticResource MetaValue}" TextWrapping="WrapWholeWords" IsTextSelectionEnabled="True"/>
+                                <HyperlinkButton Content="Open File Location" Padding="0" Click="OpenFolderHyperlink_Click" />
+                            </StackPanel>
                         </StackPanel>
-                        <Button Grid.Column="2"
-                                Content="✕"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                Padding="4,0"
-                                MinWidth="28"
-                                Tag="{x:Bind FilePath}"
-                                Click="RemovePending_Click"/>
-                    </Grid>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
-
-        <!-- Primary action -->
-        <Button x:Name="SendButton"
-                Content="Send"
-                MinHeight="44"
-                Click="SendButton_Click"
-                IsEnabled="False"
-                Style="{StaticResource TopBarPrimaryButton}"/>
-    </StackPanel>
-
-    <!-- RIGHT: Details -->
-    <StackPanel Grid.Column="2" Spacing="12">
-        <!-- File header card -->
-        <Border Style="{StaticResource CardBorderStyle}">
-            <Grid ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="56"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <Border Width="56" Height="56" CornerRadius="8" Background="#22000000">
-                    <Image x:Name="FileIconImage" Stretch="Uniform"/>
-                </Border>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                    <TextBlock x:Name="FileNameTextBlock" FontSize="18" FontWeight="Bold" Text="" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE71B;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                        <TextBlock Text="Path:" Style="{StaticResource MetaLabel}" Margin="0,0,2,0"/>
-                        <TextBlock x:Name="FilePathValueTextBlock"
-                                   Style="{StaticResource MetaValue}"
-                                   Width="320"
-                                   TextWrapping="Wrap"
-                                   IsTextSelectionEnabled="True"/>
-                        <HyperlinkButton Content="Open"
-                                         Padding="4,0"
-                                         Click="OpenFolderHyperlink_Click"/>
+                        <!-- Inline metadata preview (collapsed until item selected) -->
+                        <Grid x:Name="MetadataGrid" ColumnSpacing="16" RowSpacing="6" />
+                        <Button Content="Copy All" HorizontalAlignment="Right" Click="CopyAll_Click" MinWidth="90"/>
                     </StackPanel>
-                </StackPanel>
-            </Grid>
-        </Border>
+                </Border>
 
-        <!-- Metadata card -->
-        <Border Style="{StaticResource CardBorderStyle}">
-            <Grid x:Name="MetadataGrid" ColumnSpacing="16" RowSpacing="6">
-                <!-- Populated dynamically or keep fallback -->
-                <TextBlock x:Name="FileMetadataTextBlock"
-                           FontFamily="Consolas"
-                           FontSize="12"
-                           Text="File information will appear here."
-                           TextWrapping="Wrap"
-                           IsTextSelectionEnabled="True"/>
-            </Grid>
-        </Border>
+                <!-- Drop zone -->
+                <Border x:Name="DropZone" MinHeight="110" Style="{StaticResource CardBorderStyle}" AllowDrop="True" Drop="OnFileDrop" DragOver="OnDragOver" DragLeave="DropZone_DragLeave" Tapped="DropZone_Tapped" AutomationProperties.Name="Executable drop area and browse button">
+                    <Grid>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
+                            <FontIcon Glyph="&#xE898;" FontSize="22" Foreground="{StaticResource AccentBrush}"/>
+                            <TextBlock Text="Drop .exe or Browse" FontSize="13" />
+                        </StackPanel>
+                        <Button Content="Browse" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4" Click="BrowseButton_Click" MinWidth="80" MinHeight="30" Style="{StaticResource SecondaryButtonStyle}"/>
+                    </Grid>
+                </Border>
 
-        <!-- Secondary actions -->
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-            <Button Content="Copy All" Click="CopyAll_Click" MinWidth="90"/>
-        </StackPanel>
-    </StackPanel>
-</Grid>
+                <!-- Files header -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Files" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                        <InfoBadge Value="{x:Bind Pending.Count, Mode=OneWay}" Style="{StaticResource InformationalIconInfoBadgeStyle}" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Margin="12,0,0,0" Content="Clear" Click="ClearAllButton_Click" IsEnabled="{x:Bind HasPending, Mode=OneWay}" MinWidth="58"/>
+                </Grid>
 
-        <!-- Busy overlay should span all rows and be above other content -->
-        <Grid x:Name="BusyOverlay"
-              Grid.Row="0"
-              Grid.RowSpan="3"
-              Visibility="Collapsed"
-              Canvas.ZIndex="100"
-              IsHitTestVisible="True"
-              Background="#40FFFFFF">
-            <StackPanel HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Spacing="12">
+                <!-- File list with icons -->
+                <ListView x:Name="SelectedFilesList" ItemsSource="{x:Bind Pending}" IsItemClickEnabled="True" ItemClick="SelectedFilesList_ItemClick" DoubleTapped="SelectedFilesList_DoubleTapped" SelectionMode="None" MaxHeight="340">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="local:PendingItem">
+                            <Grid ColumnSpacing="10" Padding="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="32"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Image Grid.Column="0" Width="28" Height="28" Stretch="Uniform" Source="{x:Bind IconSource}" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="{x:Bind FileName}" FontSize="13" FontWeight="SemiBold" />
+                                    <TextBlock Text="{x:Bind FilePath}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind FilePath}"/>
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="✕" Style="{StaticResource SecondaryButtonStyle}" Padding="6,0" MinWidth="28" Tag="{x:Bind FilePath}" Click="RemovePending_Click"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <!-- Primary action -->
+                <Button x:Name="SendButton" Content="Send" MinHeight="44" Click="SendButton_Click" IsEnabled="False" Style="{StaticResource TopBarPrimaryButton}"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid x:Name="BusyOverlay" Visibility="Collapsed" Background="#40FFFFFF">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
                 <ProgressRing IsActive="True" Width="48" Height="48"/>
                 <TextBlock Text="Uploading..." FontWeight="SemiBold"/>
             </StackPanel>
         </Grid>
     </Grid>
-
 </Window>
 
