@@ -96,10 +96,10 @@ namespace WinUIMetadataScraper
             IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
             var appWindow = AppWindow.GetFromWindowId(windowId);
-            appWindow?.Resize(new SizeInt32(900, 820)); // reduced height & width
+            appWindow?.Resize(new SizeInt32(1080, 820)); // widened window
             if (appWindow?.Presenter is OverlappedPresenter p)
             {
-                p.IsResizable = true; // allow user to resize now
+                p.IsResizable = true;
                 p.IsMaximizable = false;
             }
 
@@ -195,17 +195,40 @@ namespace WinUIMetadataScraper
             {
                 SendButton.IsEnabled = false;
                 SendButton.Content = "Sending...";
+                StatusText.Text = "Uploading...";
                 return;
             }
 
             bool hasFiles = _pending.Count > 0;
-            SendButton.IsEnabled = _isAuthenticated && hasFiles;
+            bool canSend = _isAuthenticated && hasFiles;
+            SendButton.IsEnabled = canSend;
             SendButton.Content = _pending.Count switch
             {
                 0 => "Send",
                 1 => "Send 1 item",
                 _ => $"Send {_pending.Count} items"
             };
+
+            if (canSend)
+            {
+                StatusText.Text = "Ready to send";
+            }
+            else if (!_isAuthenticated && !hasFiles)
+            {
+                StatusText.Text = "Login and add files";
+            }
+            else if (!_isAuthenticated)
+            {
+                StatusText.Text = "Login required";
+            }
+            else if (!hasFiles)
+            {
+                StatusText.Text = "Add files to send";
+            }
+            else
+            {
+                StatusText.Text = string.Empty;
+            }
         }
 
         private void ClearFileState()
