@@ -5,14 +5,15 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -28,8 +29,11 @@ using static KeyboardSite.FileMetaDataProcessor.ExeFileMetaDataHelper;
 
 namespace WinUIMetadataScraper
 {
-    public sealed partial class MainWindow : Window
+    public sealed partial class MainWindow : Window, INotifyPropertyChanged
     {
+        public event PropertyChangedEventHandler? PropertyChanged;
+        private void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
         // ----------------------------------------------------------------------------------
         // Constants
         // ----------------------------------------------------------------------------------
@@ -76,7 +80,11 @@ namespace WinUIMetadataScraper
             _tokenStorage = new TokenStorage();
 
             // Update bindings whenever collection changes so HasPending re-evaluates
-            _pending.CollectionChanged += (_, __) => Bindings.Update();
+            _pending.CollectionChanged += (_, __) =>
+            {
+                OnPropertyChanged(nameof(HasPending));
+                UpdateSendButtonState();
+            };
 
             _ = InitializeAuthStateAsync();
             UpdateSendButtonState();
@@ -178,46 +186,34 @@ namespace WinUIMetadataScraper
         // ----------------------------------------------------------------------------------
         // UI State
         // ----------------------------------------------------------------------------------
+        // In UpdateSendButtonState(): replace entire method body with simplified version
         private void UpdateSendButtonState()
         {
-            // While sending: always disabled and show progress text only on the button
+            BusyOverlay.Visibility = _isSending ? Visibility.Visible : Visibility.Collapsed;
+
             if (_isSending)
             {
                 SendButton.IsEnabled = false;
                 SendButton.Content = "Sending...";
-                SendStatusText.Visibility = Visibility.Collapsed; // hide helper text during send
                 return;
             }
 
-            // Normal state: compute enabled based on auth + selection
             bool hasFiles = _pending.Count > 0;
             SendButton.IsEnabled = _isAuthenticated && hasFiles;
-            SendButton.Content = hasFiles
-                ? (_pending.Count == 1 ? "Send .exe metadata" : $"Send {_pending.Count} .exe metadata items")
-                : "Send .exe metadata";
-
-            if (SendButton.IsEnabled)
+            SendButton.Content = _pending.Count switch
             {
-                SendStatusText.Text = "";
-                SendStatusText.Visibility = Visibility.Collapsed;
-            }
-            else
-            {
-                SendStatusText.Visibility = Visibility.Visible;
-                if (!_isAuthenticated && !hasFiles)
-                    SendStatusText.Text = "Login and select file(s) to enable";
-                else if (!_isAuthenticated)
-                    SendStatusText.Text = "Login to enable";
-                else
-                    SendStatusText.Text = "Select file(s) to enable";
-            }
+                0 => "Send",
+                1 => "Send 1 item",
+                _ => $"Send {_pending.Count} items"
+            };
         }
 
         private void ClearFileState()
         {
             FileNameTextBlock.Text = "";
             FilePathValueTextBlock.Text = "";
-            FileMetadataTextBlock.Text = PlaceholderMetadataText;
+            MetadataGrid.Children.Clear();
+            MetadataGrid.RowDefinitions.Clear();
             FileIconImage.Source = null;
 
             _pending.Clear(); // clear multi-selection
@@ -294,15 +290,9 @@ namespace WinUIMetadataScraper
                 FilePathValueTextBlock.Text = filePath;
                 await UpdateFileIconAsync(filePath);
 
-                FileMetadataTextBlock.Text =
-                    $"File Version: {metadata.FileVersion}\n" +
-                    $"Product Name: {metadata.ProductName}\n" +
-                    $"File Description: {metadata.FileDescription}\n" +
-                    $"Company Name: {metadata.CompanyName}\n" +
-                    $"Original Filename: {metadata.OriginalFileName}\n" +
-                    $"Internal Name: {metadata.InternalName}\n" +
-                    $"Product Version: {metadata.ProductVersion}\n" +
-                    $"Copyright: {metadata.LegalCopyright}";
+                MetadataGrid.Children.Clear();
+                MetadataGrid.RowDefinitions.Clear();
+                RenderMetadataGrid(metadata);
             }
             catch (Exception ex)
             {
@@ -522,7 +512,8 @@ namespace WinUIMetadataScraper
                 Environment.NewLine + Environment.NewLine,
                 FileNameTextBlock.Text?.Trim(),
                 FilePathValueTextBlock.Text?.Trim(),
-                FileMetadataTextBlock.Text?.Trim());
+                string.Join(Environment.NewLine, MetadataGrid.Children.OfType<TextBlock>().Select(tb => tb.Text))
+            );
 
             if (string.IsNullOrWhiteSpace(combined))
                 combined = "No metadata.";
@@ -668,27 +659,36 @@ namespace WinUIMetadataScraper
             }
         }
 
-        private async void OpenFolderHyperlink_Click(Hyperlink sender, HyperlinkClickEventArgs args)
+        private async void OpenFolderHyperlink_Click(object sender, RoutedEventArgs e)
         {
-            if (!string.IsNullOrEmpty(_lastFilePath))
-            {
-                try
-                {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = "explorer.exe",
-                        Arguments = $"/select,\"{_lastFilePath}\"",
-                        UseShellExecute = true
-                    });
-                }
-                catch (Exception ex)
-                {
-                    await ShowMessageDialog($"Failed to open folder and select file: {ex.Message}");
-                }
-            }
-            else
+            var path = _lastFilePath;
+            if (string.IsNullOrWhiteSpace(path))
+                path = FilePathValueTextBlock.Text;
+
+            if (string.IsNullOrWhiteSpace(path))
             {
                 await ShowMessageDialog("No file has been selected.");
+                return;
+            }
+
+            if (!File.Exists(path))
+            {
+                await ShowMessageDialog("The file no longer exists at this path.");
+                return;
+            }
+
+            try
+            {
+                System.Diagnostics.Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{path}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                await ShowMessageDialog($"Failed to open folder: {ex.Message}");
             }
         }
 
@@ -851,27 +851,68 @@ namespace WinUIMetadataScraper
             {
                 FileNameTextBlock.Text = "";
                 FilePathValueTextBlock.Text = "";
-                FileMetadataTextBlock.Text = PlaceholderMetadataText;
+                MetadataGrid.Children.Clear();
+                MetadataGrid.RowDefinitions.Clear();
                 FileIconImage.Source = null;
+                _lastFilePath = null; // ensure cleared (add this if missing)
                 return;
             }
 
             FileNameTextBlock.Text = item.FileName;
             FilePathValueTextBlock.Text = item.FilePath;
+            _lastFilePath = item.FilePath; // ADD THIS LINE
 
             var m = item.Metadata;
-            FileMetadataTextBlock.Text =
-                $"File Version: {m.FileVersion}\n" +
-                $"Product Name: {m.ProductName}\n" +
-                $"File Description: {m.FileDescription}\n" +
-                $"Company Name: {m.CompanyName}\n" +
-                $"Original Filename: {m.OriginalFileName}\n" +
-                $"Internal Name: {m.InternalName}\n" +
-                $"Product Version: {m.ProductVersion}\n" +
-                $"Copyright: {m.LegalCopyright}";
+            RenderMetadataGrid(m);
 
             if (!string.IsNullOrEmpty(item.FilePath))
                 await UpdateFileIconAsync(item.FilePath);
+        }
+
+        private void RenderMetadataGrid(ProgramExeMetaData m)
+        {
+            MetadataGrid.Children.Clear();
+            MetadataGrid.RowDefinitions.Clear();
+
+            void AddRow(string label, string? value)
+            {
+                int r = MetadataGrid.RowDefinitions.Count;
+                MetadataGrid.RowDefinitions.Add(new RowDefinition() { Height = GridLength.Auto });
+
+                var lbl = new TextBlock { Text = label, Style = (Style)RootGrid.Resources["MetaLabel"] };
+                var val = new TextBlock
+                {
+                    Text = string.IsNullOrWhiteSpace(value) ? "—" : value,
+                    Style = (Style)RootGrid.Resources["MetaValue"],
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                };
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    ToolTipService.SetToolTip(val, value);
+                }
+                Grid.SetRow(lbl, r);
+                Grid.SetRow(val, r);
+                Grid.SetColumn(val, 1);
+
+                if (MetadataGrid.ColumnDefinitions.Count == 0)
+                {
+                    MetadataGrid.ColumnDefinitions.Add(new ColumnDefinition() { Width = GridLength.Auto });
+                    MetadataGrid.ColumnDefinitions.Add(new ColumnDefinition() { Width = new GridLength(1, GridUnitType.Star) });
+                }
+
+                MetadataGrid.Children.Add(lbl);
+                MetadataGrid.Children.Add(val);
+            }
+
+            AddRow("Product Name", m.ProductName);
+            AddRow("File Version", m.FileVersion);
+            AddRow("Product Version", m.ProductVersion);
+            AddRow("Description", m.FileDescription);
+            AddRow("Company", m.CompanyName);
+            AddRow("Original Name", m.OriginalFileName);
+            AddRow("Internal Name", m.InternalName);
+            if (!string.IsNullOrWhiteSpace(m.LegalCopyright))
+                AddRow("Copyright", m.LegalCopyright);
         }
 
         // New: remove single pending item (bound to per-row X button)
