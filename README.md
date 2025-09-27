@@ -8,8 +8,7 @@ The actual .exe files are never sent to Defkey.com; only the extracted metadata 
 The advantage of this approach versus uploading the entire .exe file on web interface is that this is much faster and
 also allows files bigger than 100MB to be analyzed (no limit).
 
-The disadvantage is that this tool only works on Windows 10 and higher, and for now it does not allow
-selecting multiple files at once.
+The disadvantage is that this tool only works on Windows 10 and higher.
 
 **How to Use ExeMetadataScraper?**
 
