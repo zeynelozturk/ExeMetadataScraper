@@ -254,79 +254,6 @@ namespace WinUIMetadataScraper
         }
 
         // ----------------------------------------------------------------------------------
-        // File Handling
-        // ----------------------------------------------------------------------------------
-        private async Task HandleFileAsync(StorageFile file)
-        {
-            string filePath = file.Path;
-
-            if (file.FileType.Equals(".url", StringComparison.OrdinalIgnoreCase))
-            {
-                await ShowMessageDialog("The selected file is a .URL file and cannot be processed.");
-                ClearFileState();
-                UpdateSendButtonState();
-                return;
-            }
-
-            if (file.FileType.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
-            {
-                filePath = ResolveShortcut(filePath) ?? "";
-                if (string.IsNullOrEmpty(filePath))
-                {
-                    await ShowMessageDialog("The shortcut is invalid or unsupported.");
-                    ClearFileState();
-                    UpdateSendButtonState();
-                    return;
-                }
-                if (filePath.StartsWith("steam://", StringComparison.OrdinalIgnoreCase))
-                {
-                    await ShowMessageDialog("Steam link shortcuts are not supported.");
-                    ClearFileState();
-                    UpdateSendButtonState();
-                    return;
-                }
-            }
-
-            if (!filePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-            {
-                await ShowMessageDialog("The selected file is not a supported executable (.exe).");
-                ClearFileState();
-                UpdateSendButtonState();
-                return;
-            }
-
-            try
-            {
-                if (InstallerDetector.IsInstaller(filePath))
-                {
-                    await ShowMessageDialog("This file appears to be an installer. Installer metadata may be declined.");
-                }
-
-                var metadata = ExeFileMetaDataHelper.GetMetadata(filePath);
-                var iconData = ExeFileMetaDataHelper.ExtractExeIconData(filePath);
-
-                _lastMetadata = metadata;
-                _lastCustomData.ExeIconDataList = iconData ?? new List<ExeIconData>();
-                _lastFilePath = filePath;
-
-                FileNameTextBlock.Text = System.IO.Path.GetFileName(filePath);
-                FilePathValueTextBlock.Text = filePath;
-                await UpdateFileIconAsync(filePath);
-
-                MetadataGrid.Children.Clear();
-                MetadataGrid.RowDefinitions.Clear();
-                RenderMetadataGrid(metadata);
-            }
-            catch (Exception ex)
-            {
-                await ShowMessageDialog($"Failed to read file metadata: {ex.Message}");
-                ClearFileState();
-            }
-
-            UpdateSendButtonState();
-        }
-
-        // ----------------------------------------------------------------------------------
         // Send Metadata
         // ----------------------------------------------------------------------------------
         private async void SendButton_Click(object sender, RoutedEventArgs e)
@@ -831,7 +758,8 @@ namespace WinUIMetadataScraper
             {
                 if (InstallerDetector.IsInstaller(filePath))
                 {
-                    await ShowMessageDialog("This file appears to be an installer. Installer metadata may be declined.");
+                    var fileName = System.IO.Path.GetFileName(filePath) ?? filePath;
+                    await ShowMessageDialog($"\"{fileName}\" appears to be an installer. Installer metadata may be declined.");
                 }
 
                 var metadata = ExeFileMetaDataHelper.GetMetadata(filePath);
@@ -859,7 +787,8 @@ namespace WinUIMetadataScraper
             }
             catch (Exception ex)
             {
-                await ShowMessageDialog($"Failed to read file metadata for \"{filePath}\": {ex.Message}");
+                var fileName = System.IO.Path.GetFileName(filePath) ?? filePath;
+                await ShowMessageDialog($"Failed to read file metadata for \"{fileName}\": {ex.Message}");
                 return false;
             }
         }
