@@ -87,7 +87,7 @@
   <PropertyGroup>
     <ApplicationIcon>Assets\App.ico</ApplicationIcon>
     <PackageIcon>App.png</PackageIcon>
-    <AssemblyVersion>1.0.5</AssemblyVersion>
-    <FileVersion>1.0.5</FileVersion>
+    <AssemblyVersion>1.0.6</AssemblyVersion>
+    <FileVersion>1.0.6</FileVersion>
   </PropertyGroup>
 </Project>
