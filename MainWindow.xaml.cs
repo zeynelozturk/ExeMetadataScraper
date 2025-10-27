@@ -256,6 +256,7 @@ namespace WinUIMetadataScraper
         // ----------------------------------------------------------------------------------
         // Send Metadata
         // ----------------------------------------------------------------------------------
+        // Replace the entire SendButton_Click with this version
         private async void SendButton_Click(object sender, RoutedEventArgs e)
         {
             if (_isSending) return;
@@ -273,14 +274,14 @@ namespace WinUIMetadataScraper
             {
                 if (!await EnsureAuthenticatedAsync().ConfigureAwait(true))
                 {
-                    await ShowMessageDialog("Authentication failed; cannot send.");
+                    await ShowUploadResultAsync("Authentication failed; cannot send.", success: false, title: "Upload failed");
                     return;
                 }
 
                 string token = _tokenStorage.GetToken();
                 if (string.IsNullOrEmpty(token))
                 {
-                    await ShowMessageDialog("No valid token after login attempt.");
+                    await ShowUploadResultAsync("No valid token after login attempt.", success: false, title: "Upload failed");
                     return;
                 }
 
@@ -306,24 +307,28 @@ namespace WinUIMetadataScraper
                     string resp = await response.Content.ReadAsStringAsync().ConfigureAwait(true);
                     if (response.IsSuccessStatusCode)
                     {
-                        await ShowMessageDialog("Metadata sent successfully! It is added to your drafts.");
+                        await ShowUploadResultAsync("Metadata sent successfully! It is added to your drafts.", success: true, title: "Upload successful");
                         ClearFileState();
                         ResetDropZoneVisual();
                     }
                     else
                     {
-                        await ShowMessageDialog($"Failed to send metadata. Status: {response.StatusCode}\n{resp}");
+                        await ShowUploadResultAsync($"Failed to send metadata. Status: {response.StatusCode}\n{resp}", success: false, title: "Upload failed");
                     }
                 }
                 catch (Exception ex)
                 {
-                    await ShowMessageDialog($"Error sending metadata: {ex.Message}");
+                    await ShowUploadResultAsync($"Error sending metadata: {ex.Message}", success: false, title: "Upload failed");
                 }
             }
             finally
             {
-                _isSending = false;
-                UpdateSendButtonState();
+                // Safety net: if we didn't already stop the spinner above
+                if (_isSending)
+                {
+                    _isSending = false;
+                    UpdateSendButtonState();
+                }
             }
         }
 
@@ -961,5 +966,45 @@ namespace WinUIMetadataScraper
 
         public string FormatItemCount(int count) => $"{count} item(s)";
 
+        // Add these helpers inside MainWindow class (near ShowMessageDialog)
+        private async Task ShowUploadResultAsync(string message, bool success, string title)
+        {
+            // Stop the uploading animation before showing the dialog
+            _isSending = false;
+            UpdateSendButtonState();
+
+            await ShowMessageDialogWithIcon(message, title, success);
+        }
+
+        private async Task ShowMessageDialogWithIcon(string message, string title, bool isSuccess)
+        {
+            var icon = new FontIcon
+            {
+                // Segoe MDL2 Assets: CheckMark / Error
+                Glyph = isSuccess ? "\uE73E" : "\uE783",
+                FontSize = 20,
+                Foreground = new SolidColorBrush(isSuccess ? Microsoft.UI.Colors.SeaGreen : Microsoft.UI.Colors.Firebrick),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            content.Children.Add(icon);
+            content.Children.Add(new TextBlock
+            {
+                Text = message,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            var dialog = new ContentDialog
+            {
+                Title = title,
+                Content = content,
+                CloseButtonText = "OK",
+                XamlRoot = this.Content.XamlRoot
+            };
+
+            await dialog.ShowAsync();
+        }
     }
 }

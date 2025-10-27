@@ -33,28 +33,28 @@
                 <Setter Property="Padding" Value="12,6"/>
             </Style>
 
-    <Thickness x:Key="SpaceXs">4</Thickness>
-    <Thickness x:Key="SpaceSm">8</Thickness>
-    <Thickness x:Key="SpaceMd">12</Thickness>
+            <Thickness x:Key="SpaceXs">4</Thickness>
+            <Thickness x:Key="SpaceSm">8</Thickness>
+            <Thickness x:Key="SpaceMd">12</Thickness>
 
-    <Style x:Key="CardBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="8" />
-        <Setter Property="Padding" Value="12" />
-    </Style>
+            <Style x:Key="CardBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="12" />
+            </Style>
 
-    <Style x:Key="MetaLabel" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
-        <Setter Property="Margin" Value="0,0,0,2" />
-    </Style>
-    <Style x:Key="MetaValue" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
-        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-    </Style>
+            <Style x:Key="MetaLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Setter Property="Margin" Value="0,0,0,2" />
+            </Style>
+            <Style x:Key="MetaValue" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
         </Grid.Resources>
 
         <Grid.RowDefinitions>
