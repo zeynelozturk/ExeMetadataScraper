@@ -2,3 +2,5 @@
 **/[Oo]bj/
 .bin/
 .obj/
+.vs/
+slnx.sqlite

@@ -19,6 +19,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
@@ -53,6 +54,7 @@ namespace WinUIMetadataScraper
         private int _callbackPort = -1;
         private StreamSocketListener? _listener;
         private readonly DispatcherQueue _uiDispatcher;
+        private readonly SemaphoreSlim _authStateGate = new(1, 1);
 
         // New: prevent re-entrancy and show progress
         private bool _isSending;
@@ -112,6 +114,7 @@ namespace WinUIMetadataScraper
         // ----------------------------------------------------------------------------------
         private async Task InitializeAuthStateAsync()
         {
+            await _authStateGate.WaitAsync().ConfigureAwait(false);
             try
             {
                 var token = _tokenStorage.GetToken();
@@ -127,12 +130,14 @@ namespace WinUIMetadataScraper
                     }
                     else
                     {
+                        _isAuthenticated = false;
                         _tokenStorage.SaveToken(null);
                         RunOnUi(() => AuthStatusTextBlock.Text = "Not authenticated");
                     }
                 }
                 else
                 {
+                    _isAuthenticated = false;
                     RunOnUi(() => AuthStatusTextBlock.Text = "Not authenticated");
                 }
             }
@@ -149,6 +154,7 @@ namespace WinUIMetadataScraper
                     UpdateAuthUi();
                     UpdateSendButtonState();
                 });
+                _authStateGate.Release();
             }
         }
 
@@ -337,6 +343,7 @@ namespace WinUIMetadataScraper
         // ----------------------------------------------------------------------------------
         private async void LoginButton_Click(object sender, RoutedEventArgs? e)
         {
+            await _authStateGate.WaitAsync();
             try
             {
                 string loginUrl = $"{ApiRoutes.GetBaseUrl()}/Account/Login";
@@ -362,12 +369,17 @@ namespace WinUIMetadataScraper
                 }
                 else
                 {
+                    _isAuthenticated = false;
                     await ShowMessageDialog("Login failed: No token received.");
                 }
             }
             catch (Exception ex)
             {
                 await ShowMessageDialog($"Login failed: {ex.Message}");
+            }
+            finally
+            {
+                _authStateGate.Release();
             }
         }
 
